@@ -60,10 +60,70 @@ func NewKubeletCommand() *cobra.Command {
 }
 ```
 
->* cleanFlagSet := pflag.NewFlagSet(componentKubelet, pflag.ContinueOnError)
->  * type: pflag.FlagSet
->  * 创建pflag.FlagSet结构，默认值填充。
->  * 作用：用于存储kubelet启动时附加的命令行参数
+* cleanFlagSet
+
+  ```go
+  cleanFlagSet := pflag.NewFlagSet(componentKubelet, pflag.ContinueOnError)
+  ```
+
+  * type: pflag.FlagSet
+
+  * 创建pflag.FlagSet结构，**暂时默认值填充**。
+
+  * 作用：用于存储kubelet启动时附加的命令行参数
+
+  * 拓展：
+
+    * pflag的两种使用方式
+
+      > import "github.com/spf13/pflag"
+
+      * 方式一：
+    
+        ```go
+        flagSet := pflag.NewFlagSet("main", flag.ExitOnError)
+        
+        version := flagSet.BoolP("version", "v", false, "print version string")		// 参数定义
+        flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
+	      fmt.Println(*version)														// 读取：使用参数
+        ```
+    
+      * 方式二：
+    
+        ```go
+        version := pflag.BoolP("version","v", false, "print version string")		// 参数定义
+        flag.Parse()																// 解析
+        fmt.println(version)														// 读取
+        ```
+    
+      * 附加：
+    
+        若使用package为golang内置的`flag`而不是`pflag`（增强版），可使用如下：
+    
+        ```go
+        flagSet := flag.NewFlagSet("main", flag.ExitOnError)
+        
+        version := flagSet.Bool("version", false, "print version string")			// 参数定义
+        flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
+        
+        // 方法一
+        value := flagSet.Lookup("version").Value.(flag.Getter).Get().(bool)			//  (如果参数没有赋值)
+        fmt.Println(value)
+        
+        // 方法二
+        fmt.Println(*version)														// 读取：使用参数
+        ```
+    
+      > 启动参照： ./go_exec --version=true
+    
+
+​			
+
+
+
+
+
+
 
 
 
