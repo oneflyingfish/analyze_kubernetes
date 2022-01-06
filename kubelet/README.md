@@ -60,7 +60,7 @@ func NewKubeletCommand() *cobra.Command {
 }
 ```
 
-* cleanFlagSet
+* 默认初始化cleanFlagSet结构
 
   ```go
   cleanFlagSet := pflag.NewFlagSet(componentKubelet, pflag.ContinueOnError)
@@ -115,7 +115,7 @@ func NewKubeletCommand() *cobra.Command {
       > 启动参照： ./go_exec --version=true
     
 
-* kubeletFlags
+* 默认初始化kubeletFlags结构
 
   ```go
   // 默认值初始化KubeletFlags结构,包括docker,证书路径，插件目录，CIDR等等
@@ -125,15 +125,44 @@ func NewKubeletCommand() *cobra.Command {
   * type: option.KubeletFlags
   * 作用：存储从`kubelet`命令启动时追加的参数（Flags）
 
-* kubeletConfig
+* 默认初始化kubeletConfig结构
 
   ```go
   kubeletConfig, err := options.NewKubeletConfiguration()
   ```
 
   * type: config.kubeletConfiguration
+
   * 作用：存储从配置文件`--kubeconfig=$PATH/kubelet.kubeconfig`获取的参数
+
     * Node节点在CSR证书申请被批准后，自动在本地生成`kubelet.kubeconfig`，下次启动将根据此配置文件直接注册，而不用再次发起请求
+
+  * 内容示例：
+
+    ```yaml
+    apiVersion: v1
+    clusters:
+    - cluster:
+        certificate-authority-data: LS0tLS1CR......LS0tLS0K
+        server: https://$Master_IP:6443
+      name: default-cluster
+    contexts:
+    - context:
+        cluster: default-cluster
+        namespace: default
+        user: default-auth
+      name: default-context
+    current-context: default-context
+    kind: Config
+    preferences: {}
+    users:
+    - name: default-auth
+      user:
+        client-certificate: $PATH/ssl/kubelet-client-current.pem
+        client-key: $PATH/ssl/kubelet-client-current.pem
+    ```
+
+    
 
 * 
 
