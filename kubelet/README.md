@@ -68,9 +68,7 @@ func NewKubeletCommand() *cobra.Command {
 
   * type: pflag.FlagSet
 
-  * 创建pflag.FlagSet结构，**暂时默认值填充**。
-
-  * 作用：用于存储kubelet启动时附加的命令行参数
+  * 作用：类似pflag结构的定义，用于生成命令行应用
 
   * 拓展：
 
@@ -85,9 +83,9 @@ func NewKubeletCommand() *cobra.Command {
         
         version := flagSet.BoolP("version", "v", false, "print version string")		// 参数定义
         flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
-	      fmt.Println(*version)														// 读取：使用参数
+        fmt.Println(*version)														// 读取：使用参数
         ```
-    
+	  
       * 方式二：
     
         ```go
@@ -117,13 +115,27 @@ func NewKubeletCommand() *cobra.Command {
       > 启动参照： ./go_exec --version=true
     
 
-​			
+* kubeletFlags
 
+  ```go
+  // 默认值初始化KubeletFlags结构,包括docker,证书路径，插件目录，CIDR等等
+  kubeletFlags := options.NewKubeletFlags()
+  ```
 
+  * type: option.KubeletFlags
+  * 作用：存储从`kubelet`命令启动时追加的参数（Flags）
 
+* kubeletConfig
 
+  ```go
+  kubeletConfig, err := options.NewKubeletConfiguration()
+  ```
 
+  * type: config.kubeletConfiguration
+  * 作用：存储从配置文件`--kubeconfig=$PATH/kubelet.kubeconfig`获取的参数
+    * Node节点在CSR证书申请被批准后，自动在本地生成`kubelet.kubeconfig`，下次启动将根据此配置文件直接注册，而不用再次发起请求
 
+* 
 
 
 
