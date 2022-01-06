@@ -168,34 +168,35 @@ func NewKubeletCommand() *cobra.Command {
 
   * DisableFlagParsing: true
 
-    > 禁用cobra包的flags自动解析，转而也会被直接解析为参数`args`的一部分。注意`子命令`不是`flags`
+    >  即禁用cobra包的flags自动解析。flags会被直接解析为参数`args`的一部分（注意`子命令`不是`flags`），其中包括`--help`等。
     >
-    > 例如：
+    > 
     >
-    > * DisableFlagParsing: false
-    >
-    >   ```shell
-    >   rm -rf abc.txt
-    >     
-    >   # 解析结果
-    >   flags: ["-r","-f"]
-    >   args: ["abc.txt"]
-    >   ```
-  	> * DisableFlagParsing: true
-    >
-    >   ```shell
-    >   rm -rf abc.txt
-    >     
-    >   # 解析结果
-    >   flags: []
-    >   args: ["-rf","abc.txt"]
-    >   ```
-
+    > 以下通过简单示例说明此参数影响：
     
-
-​				
-
-
+    * DisableFlagParsing: false
+    
+      ```shell
+      apt-get install package -f
+      
+      # 解析结果
+      command: `apt-get install`
+  	  flags: ["-f"]
+      args: ["package"]
+      ```
+    
+    * DisableFlagParsing: true
+    
+      ```shell
+      apt-get install package -f
+      
+      # 解析结果
+      command: `apt-get install`
+      flags: []
+      args: ["-f","package"]
+      ```
+    
+      
 
 
 
