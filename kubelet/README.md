@@ -164,9 +164,36 @@ func NewKubeletCommand() *cobra.Command {
 
     
 
-* 
+* cmd初始化
 
+  * DisableFlagParsing: true
 
+    > 禁用cobra包的flags自动解析，转而也会被直接解析为参数`args`的一部分。注意`子命令`不是`flags`
+    >
+    > 例如：
+    >
+    > * DisableFlagParsing: false
+    >
+    >   ```shell
+    >   rm -rf abc.txt
+    >     
+    >   # 解析结果
+    >   flags: ["-r","-f"]
+    >   args: ["abc.txt"]
+    >   ```
+  	> * DisableFlagParsing: true
+    >
+    >   ```shell
+    >   rm -rf abc.txt
+    >     
+    >   # 解析结果
+    >   flags: []
+    >   args: ["-rf","abc.txt"]
+    >   ```
+
+    
+
+​				
 
 
 
