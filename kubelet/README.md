@@ -83,35 +83,44 @@ func NewKubeletCommand() *cobra.Command {
         
         version := flagSet.BoolP("version", "v", false, "print version string")		// 参数定义
         flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
-        fmt.Println(*version)														// 读取：使用参数
+        
+        // 读取：使用参数
+        // 方法一：
+        fmt.Println(*version)		
+        
+        // 方法二：
+        value, _ := flagSet.GetBool("version")
+        fmt.Println(value)
         ```
-	  
+      
       * 方式二：
-    
+      
         ```go
         version := pflag.BoolP("version","v", false, "print version string")		// 参数定义
-        flag.Parse()																// 解析
+        pflag.Parse()																// 解析
+        
         fmt.println(version)														// 读取
         ```
-    
+      
       * 附加：
-    
+      
         若使用package为golang内置的`flag`而不是`pflag`（增强版），可使用如下：
-    
+      
         ```go
         flagSet := flag.NewFlagSet("main", flag.ExitOnError)
         
         version := flagSet.Bool("version", false, "print version string")			// 参数定义
         flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
         
-        // 方法一
-        value := flagSet.Lookup("version").Value.(flag.Getter).Get().(bool)			//  (如果参数没有赋值)
+        // 读取：使用参数
+        // 方法一：
+        value := flagSet.Lookup("version").Value.(flag.Getter).Get().(bool)			
         fmt.Println(value)
         
         // 方法二
-        fmt.Println(*version)														// 读取：使用参数
+        fmt.Println(*version)														
         ```
-    
+      
       > 启动参照： ./go_exec --version=true
     
 
@@ -173,20 +182,20 @@ func NewKubeletCommand() *cobra.Command {
     > 
     >
     > 以下通过简单示例说明此参数影响：
-    
+
     * DisableFlagParsing: false
-    
+
       ```shell
       apt-get install package -f
       
       # 解析结果
       command: `apt-get install`
-  	  flags: ["-f"]
+      flags: ["-f"]
       args: ["package"]
       ```
-    
+
     * DisableFlagParsing: true
-    
+
       ```shell
       apt-get install package -f
       
@@ -195,8 +204,22 @@ func NewKubeletCommand() *cobra.Command {
       flags: []
       args: ["-f","package"]
       ```
+
+    * 将此参数值设置为`true`，使得`kubelet`可以在`Run`函数里，完全自定义可控的方式处理程序
+
+  * Run函数编写
+
+    > 即执行kubelet命令时的调用入口函数
+
+    ```go
+    cleanFlagSet.Parse(args)	// 解析程序flags
+    ```
+
     
-      
+
+
+
+
 
 
 
