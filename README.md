@@ -33,41 +33,41 @@
 
 ### 三、源码剖析
 
-#### 1. [API-Server](apiserver/README.md)
+#### 1. [API-Server](apiserver)
 
 提供了资源操作的唯一入口，并提供认证、授权、访问控制、API注册和发现等机制
 
 
 
-#### 2. [Controller-manager](controller-manager/README.md)
+#### 2. [Controller-manager](controller-manager)
 
 负责维护集群的状态，比如故障检测、自动扩展、滚动更新等
 
 
 
-#### 3. [Kube-Scheduler](kube-scheduler/README.md)
+#### 3. [Kube-Scheduler](kube-scheduler)
 
 负责资源的调度，按照预定的调度策略将Pod调度到相应的机器上
 
 
 
-#### 4. [Kubelet](kubelet/README.md)
+#### 4. [Kubelet](kubelet)
 
 负责维护容器的生命周期，同时也负责Volume（CVI）和网络（CNI）的管理
 
 
 
-#### 5. [Kube-proxy](kube-proxy/README.md)
+#### 5. [Kube-proxy](kube-proxy)
 
 负责为Service提供cluster内部的服务发现和负载均衡
 
 
 
-#### 6. [Kube-ctl](kubectl/README.md)
+#### 6. [Kube-ctl](kubectl)
 
 
 
-#### 7. [ 技术补充](others/README.md)
+#### 7. [ 技术补充](others)
 
 
 
