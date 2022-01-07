@@ -351,10 +351,36 @@ func NewKubeletCommand() *cobra.Command {
             // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
             
         	return &fsLoader{
-        		fs:            fs,
+        		fs:            fs,				// 即为DefaultFs类型
         		kubeletCodecs: kubeletCodecs,
         		kubeletFile:   kubeletFile,
         	}, nil
+        }
+        ```
+    
+      * 数据读取以及格式化
+    
+        ```go
+        
+        func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
+        	data, err := loader.fs.ReadFile(loader.kubeletFile)
+        
+        	// ...
+            
+        	kc, err := utilcodec.DecodeKubeletConfiguration(loader.kubeletCodecs, data)
+        	
+            // ...
+            
+            // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
+            paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
+            
+            // 读取kubelet.kubeconfig文件所在目录，作为root目录
+            root_dir := filepath.Dir(loader.kubeletFile)
+            
+            // 将kubeconfig结构中所有字段的目录，修改为：
+            // *path = filepath.Join(root_dir, *path)
+        	resolveRelativePaths(paths, root_dir)
+        	return kc, nil
         }
         ```
     
