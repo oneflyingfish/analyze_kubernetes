@@ -192,11 +192,9 @@ func NewKubeletCommand() *cobra.Command {
         client-key: $PATH/ssl/kubelet-client-current.pem
     ```
 
-    
-
 * cmd初始化
 
-  * DisableFlagParsing: true
+  * `DisableFlagParsing: true`
 
     >  即禁用cobra包的flags自动解析。flags会被直接解析为参数`args`的一部分（注意`子命令`不是`flags`），其中包括`--help`等。
     >
@@ -204,7 +202,7 @@ func NewKubeletCommand() *cobra.Command {
     >
     > 以下通过简单示例说明此参数影响：
 
-    * DisableFlagParsing: false
+    * `DisableFlagParsing: false`
 
       ```shell
       apt-get install package -f
@@ -215,7 +213,7 @@ func NewKubeletCommand() *cobra.Command {
       args: ["package"]
       ```
 
-    * DisableFlagParsing: true
+    * `DisableFlagParsing: true`
 
       ```shell
       apt-get install package -f
@@ -232,21 +230,77 @@ func NewKubeletCommand() *cobra.Command {
 
     > 即执行kubelet命令时的调用入口函数
 
-    * 对程序的输入命令进行解析，判断输入参数合法性
+    * 对程序的输入命令进行初步解析，判断输入参数合法性
+
       * `cleanFlagSet.Parse(args)`
-        * 解析程序flags
-        * 如果出现有未定义的flags，将返回error
+
+        > * 解析程序flags
+        >
+        > * 如果出现有未定义的flags，将返回error
+
       * `cleanFlagSet.Args()`
-        * 解析程序子命令
-        * kubelet并不支持子命令，将直接报错并结束程序
 
-    * 
+        > * 解析程序子命令
+        > * kubelet并不支持子命令，将直接报错并结束程序
 
+    * `cleanFlagSet.GetBool("help")`
+
+      > 判断是否包含`--help`，有则直接跳转到`kubelet help`，结束程序
+
+    * `verflag.PrintAndExitIfRequested()`
+
+      >* 解析`--version`字段
+      >
+      >* 内部基于`type versionValue int`手动约定枚举类型`versionValue`
+      >
+      >* `var versionFlag = Version(versionFlagName, VersionFalse, "Print version information and quit")` 
+      >
+      >  > 实质上就是基于`pflag`将一个`*versionValue`类型的值绑定到名为`versionFlagName`的`flag`,其默认值为`VersionFalse`，真实值存储在`versionFlag`
+      >  >
+      >
+      >* 使用`AddFlags(fs *flag.FlagSet)`将此处声明的`flag`注册到`fs`中，即可接受到程序真实的参数输入
+      >
+      >* 传入值：
+      >
+      >  > * `"raw"` : 打印`版本号`，结束进程
+      >  >
+      >  >   > 例如：
+      >  >   >
+      >  >   > ```shell
+      >  >   > version.Info{Major:"1", Minor:"23", GitVersion:"v1.23.1", GitCommit:"86ec240af8cbd1b60bcc4c03c20da9b98005b92e", GitTreeState:"clean", BuildDate:"2021-12-16T11:39:51Z", GoVersion:"go1.17.5", Compiler:"gc", Platform:"linux/amd64"}
+      >  >   > ```
+      >  >
+      >  > * `"true"`: 打印`程序名（此处默认为字符串"Kubernetes"）+版本号`，结束进程
+      >  >
+      >  >   > 例如：
+      >  >   >
+      >  >   > ```shell
+      >  >   > Kubernetes v1.23.1
+      >  >   > ```
+      >  >
+      >  > * `"false"`: 直接结束函数，无操作
+      >
+      >额外补充：
+      >
+      >```go
+      >// 此接口为pflag包内容
+      >type Value interface {
+      >	String() string
+      >	Set(string) error
+      >	Type() string
+      >}
+      >
+      >// 注意：可见到在verflag.go中对约定的枚举类型versionValue实现了pflag.Value接口
+      >
+      >// verflag.go: line 77~78
+      >*p = value					// 这里的p可以是自定义类型，只要实现了pflag.Value接口就行。此处实质上是*Int（手动约定枚举类型）
+      >flag.Var(p, name, usage)	// 即定义一个flag标志，与p绑定，默认值为value，名称为name，用法为usage
+      >
+      >// *p = VersionFalse		// VersionFalse = 0			
+      >// flag.Var(p, "version", "Print version information and quit")
+      >```
     
-
-
-
-
+    * 
 
 
 
