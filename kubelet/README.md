@@ -197,33 +197,31 @@ func NewKubeletCommand() *cobra.Command {
   * `DisableFlagParsing: true`
 
     >  即禁用cobra包的flags自动解析。flags会被直接解析为参数`args`的一部分（注意`子命令`不是`flags`），其中包括`--help`等。
-    >
-    > 
-    >
-    > 以下通过简单示例说明此参数影响：
-
+    
+    以下通过简单示例说明此参数影响：
+    
     * `DisableFlagParsing: false`
 
       ```shell
-      apt-get install package -f
+    apt-get install package -f
       
       # 解析结果
       command: `apt-get install`
       flags: ["-f"]
       args: ["package"]
       ```
-
+    
     * `DisableFlagParsing: true`
 
       ```shell
-      apt-get install package -f
+    apt-get install package -f
       
       # 解析结果
       command: `apt-get install`
       flags: []
       args: ["-f","package"]
       ```
-
+    
     * 将此参数值设置为`true`，使得`kubelet`可以在`Run`函数里，完全自定义可控的方式处理程序
 
   * Run函数编写
@@ -237,12 +235,12 @@ func NewKubeletCommand() *cobra.Command {
         > * 解析程序flags
         >
         > * 如果出现有未定义的flags，将返回error
-
+  
       * `cleanFlagSet.Args()`
 
         > * 解析程序子命令
         > * kubelet并不支持子命令，将直接报错并结束程序
-
+  
     * `cleanFlagSet.GetBool("help")`
 
       > 判断是否包含`--help`，有则直接跳转到`kubelet help`，结束程序
@@ -315,10 +313,32 @@ func NewKubeletCommand() *cobra.Command {
     
       > * 验证是否有非`kubelet`支持的flag（该结构决定存储的flag一定是`kubernetes`支持的，但不一定是`kubelet`支持）
       > * 验证flag的设置是否与其它选项的设置冲突，例如`FeatureGate`（可能将某特性设置为禁用）
-
-​		
-
-
+    
+    * 对容器运行时为`remote`时可能出现的错误给出提示
+    
+    * 从磁盘文件`kubelet.kubeconfig`读取配置文件
+    
+      * `DefaultFs`
+    
+        > `utilfs.DefaultFs`实质上是对默认OS文件操作的一种封装，目的是可以自动的在所有传入的文件path前面自动加上一个`root`路径
+    
+        代码：
+    
+        ```go
+        type DefaultFs struct {
+        	root string
+        }
+        
+        // 实现举例
+        func (fs *DefaultFs) Remove(name string) error {
+            real_name := filepath.Join(fs.root, name)		// 自动加上前缀
+            
+            return os.Remove(real_name)
+        }
+        // ...
+        ```
+    
+        
 
 
 
