@@ -153,7 +153,7 @@ func NewKubeletCommand() *cobra.Command {
   ```
 
   * type: option.KubeletFlags
-  * 作用：存储从`kubelet`命令启动时追加的参数（Flags）
+  * 作用：从`kubelet`命令启动时追加的参数（Flags）初始化结构
 
 * 默认初始化kubeletConfig结构
 
@@ -163,11 +163,11 @@ func NewKubeletCommand() *cobra.Command {
 
   * type: config.kubeletConfiguration
 
-  * 作用：存储从配置文件`--kubeconfig=$PATH/kubelet.kubeconfig`获取的参数
+  * 作用：从配置文件`--kubeconfig=$PATH/kubelet.kubeconfig`获取的参数初始化结构
 
     * Node节点在CSR证书申请被批准后，自动在本地生成`kubelet.kubeconfig`，下次启动将根据此配置文件直接注册，而不用再次发起请求
 
-  * 内容示例：
+  * `kubelet.kubeconfig`文件内容示例：
 
     ```yaml
     apiVersion: v1
@@ -300,9 +300,23 @@ func NewKubeletCommand() *cobra.Command {
       >// flag.Var(p, "version", "Print version information and quit")
       >```
     
-    * 
+    * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
+    
+      > `kubeletConfig.FeatureGates`为`map[string]bool`类型，存储了k8s alpha/experimental版本特性是否启用
+      >
+      > 此函数作用：
+      >
+      > * 用`kubeletConfig.FeatureGates`覆盖默认的`FeatureGates`参数项
+      >   * 内部核心实现涉及`know：Map`（存储了所有已知的特性及其描述）和`enable: Map`（存储了实际的特性及其开关状态）
+      > * 拦截对未知特性的设置
+      > * 拦截对禁止修改（通过`know[Feature_name].LockToDefault : bool`进行判定）的特性的设置
+    
+    * `options.ValidateKubeletFlags(kubeletFlags)`
+    
+      > * 验证是否有非`kubelet`支持的flag（该结构决定存储的flag一定是`kubernetes`支持的，但不一定是`kubelet`支持）
+      > * 验证flag的设置是否与其它选项的设置冲突，例如`FeatureGate`（可能将某特性设置为禁用）
 
-
+​		
 
 
 
