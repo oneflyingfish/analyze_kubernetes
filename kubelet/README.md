@@ -323,33 +323,41 @@ func NewKubeletCommand() *cobra.Command {
   
     * 从文件加载`KubeletConfig`参数
   
+      > 先从配置文件读取，如果命令行同时指定其中某字段，优先级：命令行>配置文件
+      >
+      > 特例：针对`KubeletConfig.FeatureGates`，未冲突字段采用合并的方式，冲突字段优先级：命令行>配置文件
+      >
+      >
+      > 
+      > 说明：巧妙的用了一个临时`pflag.FlagSet`而非最终保留的`FlagSet`结构来对命令行参数进行再次解析，不会因此影响到`KubeletFlags`，避免了整个应用的重复解析问题。
+
       * 从磁盘文件`kubelet.kubeconfig`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
-  
+      
           * `DefaultFs`
-
+      
             > `utilfs.DefaultFs`实质上是对默认OS文件操作的一种封装，目的是可以自动的在所有传入的文件path前面自动加上一个`root`路径
-
+      
             代码：
-
+      
             ```go
             type DefaultFs struct {
                 root string
             }
-
+      
             // 实现举例
             func (fs *DefaultFs) Remove(name string) error {
                 real_name := filepath.Join(fs.root, name)		// 自动加上前缀
-
+      
                 return os.Remove(real_name)
             }
             // ...
             ```
-
+      
           * `loader := configfiles.NewFsLoader(...)`
-
+      
             ```go
             func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
-
+      
                 // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
 
                 return &fsLoader{
@@ -384,24 +392,20 @@ func NewKubeletCommand() *cobra.Command {
                 return kc, nil
             }
             ```
-  
+      
       * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
-  
+      
           > * 首先构造了一个假的全局`pflag.FlagSet`(实际上并不会使用，仅仅是局部变量)变量`fs`
-          >
-          > * 以旧的`KubeletConfig`的值作为默认值向`fs`注册`flag`，并均标记为`Deprecated`
-          >
-          > * `fs`解析命令行传入的所有参数，如果参数指定了`KubeletConfig`的值，将会覆盖原来的值（实际上就是从`--config=$file`文件读取到的配置指）。
-          >
+          >* 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，并均标记为`Deprecated`
+          > * `fs`解析命令行传入的所有参数，如果参数指定了`KubeletConfig`的值，将会覆盖上述默认值
+          >* 针对`KubeletConfig.FeatureGates`取并集，冲突时优先级：命令行参数 > 配置文件
           > * 写回`KubeletConfig.FeatureGates`的原值
           >
+          > 
+          >说明：即针对`Kubeletconfig`参数配置优先级：命令行参数 > 配置文件，同时在命令行未特殊指定的情况下，保留原始的`KubeletConfig.FeatureGates`值（特性开启/关闭状态尽可能不变）。**该过程不会影响到`KubeletFlags`**的值
           >   
-          >
-          >
-          > 说明：即针对`Kubeletconfig`参数配置优先级：命令行参数 > 配置文件，同时在命令行未特殊指定的情况下，保留原始的`KubeletConfig.FeatureGates`值（特性开启/关闭状态尽可能不变）。**该过程不会影响到`KubeletFlags`**的值
-          >
-          > 存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （二进制版本向后兼容）
-
+          >存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （保证二进制版本向后兼容）
+          
       * `newFlagSetWithGlobals()`
   
         > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
@@ -409,28 +413,28 @@ func NewKubeletCommand() *cobra.Command {
       * `newFakeFlagSet(...)`
   
         > 在`newFlagSetWithGlobals()`的基础上创建一个增强版`*pflag.FlagSet`结构，实质上仅仅把所有的Value绑定到了一个空结构体
-  
+      
         延伸参考：
-  
+      
         ```go
         // 对f中的所有flag以字母顺序或字典顺序执行：fn(flag)
         func (f *FlagSet) VisitAll(fn func(*Flag)){
             // ...
         }
         ```
-  
+      
       * `options.NewKubeletFlags().AddFlags(fs)`
-  
+      
         > * 实例化**一次性**的`options.KubeletFlags`结构，此处假定为`kf`
         > * 向`fs`注册了`kubelet`所有的`flags`, 值与`kf`的字段绑定，实质上放弃了对传入`KubeletFlags`参数值的读取
-  
+      
       * `options.AddKubeletConfigFlags(fs, kc)`
-  
-        > * 以旧的`KubeletConfig`的值作为默认值向`fs`注册`flag`，因此如果命令行参数重新制定，将会覆盖旧值，否则保持不变
+      
+        > * 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，因此如果命令行参数重新制定，将会覆盖默认值，否则保持不变
         > * 因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
-  
-      * 对于之前有值，但是用`flag`时没有指定的`KubeletConfig.FeatureGates`参数，使用旧数据进行写回，使得尽可能保留旧的特性开关状态
-  
+      
+      * 对于配置文件有值，但是命令行参数没有指定的`KubeletConfig.FeatureGates`参数，使用配置文件的值进行补充写回，达到合并目的。冲突字段则优先级：命令行参数 > 配置文件
+      
         ```go
         for k, v := range original {
             if _, ok := kc.FeatureGates[k]; !ok {
@@ -438,8 +442,8 @@ func NewKubeletCommand() *cobra.Command {
             }
         }
         ```
-  
+      
       * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
-  
+      
         > 由于上面更新了`Kubeconfig`的值，因此同步更新k8s alpha/experimental版本特性开闭状态
 
