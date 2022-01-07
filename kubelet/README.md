@@ -202,31 +202,31 @@ func NewKubeletCommand() *cobra.Command {
   * `DisableFlagParsing: true`
 
     >  即禁用cobra包的flags自动解析。flags会被直接解析为参数`args`的一部分（注意`子命令`不是`flags`），其中包括`--help`等。
-    
+  
     以下通过简单示例说明此参数影响：
-    
+  
     * `DisableFlagParsing: false`
 
       ```shell
-    apt-get install package -f
+      apt-get install package -f
       
       # 解析结果
       command: `apt-get install`
       flags: ["-f"]
       args: ["package"]
       ```
-    
+  
     * `DisableFlagParsing: true`
 
       ```shell
-    apt-get install package -f
+      apt-get install package -f
       
       # 解析结果
       command: `apt-get install`
       flags: []
       args: ["-f","package"]
       ```
-    
+  
     * 将此参数值设置为`true`，使得`kubelet`可以在`Run`函数里，完全自定义可控的方式处理程序
 
   * Run函数编写
@@ -302,9 +302,9 @@ func NewKubeletCommand() *cobra.Command {
       >// *p = VersionFalse		// VersionFalse = 0			
       >// flag.Var(p, "version", "Print version information and quit")
       >```
-    
+  
     * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
-    
+  
       > `kubeletConfig.FeatureGates`为`map[string]bool`类型，存储了k8s alpha/experimental版本特性是否启用
       >
       > 此函数作用：
@@ -313,115 +313,133 @@ func NewKubeletCommand() *cobra.Command {
       >   * 内部核心实现涉及`know：Map`（存储了所有已知的特性及其描述）和`enable: Map`（存储了实际的特性及其开关状态）
       > * 拦截对未知特性的设置
       > * 拦截对禁止修改（通过`know[Feature_name].LockToDefault : bool`进行判定）的特性的设置
-    
+  
     * `options.ValidateKubeletFlags(kubeletFlags)`
-    
+  
       > * 验证是否有非`kubelet`支持的flag（该结构决定存储的flag一定是`kubernetes`支持的，但不一定是`kubelet`支持）
       > * 验证flag的设置是否与其它选项的设置冲突，例如`FeatureGate`（可能将某特性设置为禁用）
-    
+  
     * 对容器运行时为`remote`时可能出现的错误给出提示
-    
-    * 从磁盘文件`kubelet.kubeconfig`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
-    
-      * `DefaultFs`
-    
-        > `utilfs.DefaultFs`实质上是对默认OS文件操作的一种封装，目的是可以自动的在所有传入的文件path前面自动加上一个`root`路径
-    
-        代码：
-    
-        ```go
-        type DefaultFs struct {
-        	root string
-        }
-        
-        // 实现举例
-        func (fs *DefaultFs) Remove(name string) error {
-            real_name := filepath.Join(fs.root, name)		// 自动加上前缀
-            
-            return os.Remove(real_name)
-        }
-        // ...
-        ```
-    
-      * `loader := configfiles.NewFsLoader(...)`
-    
-        ```go
-        func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
-        
-            // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
-            
-        	return &fsLoader{
-        		fs:            fs,				// 即为DefaultFs类型
-        		kubeletCodecs: kubeletCodecs,
-        		kubeletFile:   kubeletFile,
-        	}, nil
-        }
-        ```
-    
-      * 数据读取以及格式化
-    
-        ```go
-        func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
-        	data, err := loader.fs.ReadFile(loader.kubeletFile)
-        
-        	// ...
-            
-        	kc, err := utilcodec.DecodeKubeletConfiguration(loader.kubeletCodecs, data)
-        	
+  
+    * 从文件加载`KubeletConfig`参数
+  
+      * 从磁盘文件`kubelet.kubeconfig`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
+  
+          * `DefaultFs`
+
+            > `utilfs.DefaultFs`实质上是对默认OS文件操作的一种封装，目的是可以自动的在所有传入的文件path前面自动加上一个`root`路径
+
+            代码：
+
+            ```go
+            type DefaultFs struct {
+                root string
+            }
+
+            // 实现举例
+            func (fs *DefaultFs) Remove(name string) error {
+                real_name := filepath.Join(fs.root, name)		// 自动加上前缀
+
+                return os.Remove(real_name)
+            }
             // ...
-            
-            // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
-            paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
-            
-            // 读取kubelet.kubeconfig文件所在目录，作为root目录
-            root_dir := filepath.Dir(loader.kubeletFile)
-            
-            // 将kubeconfig结构中所有字段的目录，修改为：
-            // *path = filepath.Join(root_dir, *path)
-        	resolveRelativePaths(paths, root_dir)
-        	return kc, nil
-        }
-        ```
-    
-    * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
-    
-      > * 首先构造了一个假的全局`pflag.FlagSet`(实际上并不会使用，仅仅是局部变量)变量`fs`
-      > * 将包含`KubeletConfig`在内的`flag`（实际上基于flag指定的方式已经被弃用，要求用`--config=$file`的方式指定）在其中注册。
-      > * `fs`解析命令行传入的所有参数，此步骤有可能改变了传入的`KubeletConfig`的值，因此暂存原来的值
-      > * 恢复`kubeconfig`的原值
-      >
-      >
-      > 说明：整体读下来，疑似做了一个无用功，仅仅是虚假注册了包含`KubeletConfig`在内的所有`flags`，实际上并不会生效。
-      >
-      > 存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171
-    
+            ```
+
+          * `loader := configfiles.NewFsLoader(...)`
+
+            ```go
+            func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
+
+                // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
+
+                return &fsLoader{
+                    fs:            fs,				// 即为DefaultFs类型
+                    kubeletCodecs: kubeletCodecs,
+                    kubeletFile:   kubeletFile,
+                }, nil
+            }
+            ```
+
+          * 数据读取以及格式化
+
+            ```go
+            func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
+                data, err := loader.fs.ReadFile(loader.kubeletFile)
+        
+                // ...
+        
+                kc, err := utilcodec.DecodeKubeletConfiguration(loader.kubeletCodecs, data)
+        
+                // ...
+        
+                // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
+                paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
+        
+                // 读取kubelet.kubeconfig文件所在目录，作为root目录
+                root_dir := filepath.Dir(loader.kubeletFile)
+        
+                // 将kubeconfig结构中所有字段的目录，修改为：
+                // *path = filepath.Join(root_dir, *path)
+                resolveRelativePaths(paths, root_dir)
+                return kc, nil
+            }
+            ```
+  
+      * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
+  
+          > * 首先构造了一个假的全局`pflag.FlagSet`(实际上并不会使用，仅仅是局部变量)变量`fs`
+          >
+          > * 以旧的`KubeletConfig`的值作为默认值向`fs`注册`flag`，并均标记为`Deprecated`
+          >
+          > * `fs`解析命令行传入的所有参数，如果参数指定了`KubeletConfig`的值，将会覆盖原来的值（实际上就是从`--config=$file`文件读取到的配置指）。
+          >
+          > * 写回`KubeletConfig.FeatureGates`的原值
+          >
+          >   
+          >
+          >
+          > 说明：即针对`Kubeletconfig`参数配置优先级：命令行参数 > 配置文件，同时在命令行未特殊指定的情况下，保留原始的`KubeletConfig.FeatureGates`值（特性开启/关闭状态尽可能不变）。**该过程不会影响到`KubeletFlags`**的值
+          >
+          > 存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （二进制版本向后兼容）
+
       * `newFlagSetWithGlobals()`
-    
+  
         > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
-    
+  
       * `newFakeFlagSet(...)`
-    
+  
         > 在`newFlagSetWithGlobals()`的基础上创建一个增强版`*pflag.FlagSet`结构，实质上仅仅把所有的Value绑定到了一个空结构体
-    
+  
         延伸参考：
-    
+  
         ```go
         // 对f中的所有flag以字母顺序或字典顺序执行：fn(flag)
         func (f *FlagSet) VisitAll(fn func(*Flag)){
             // ...
         }
         ```
-    
+  
       * `options.NewKubeletFlags().AddFlags(fs)`
-    
+  
         > * 实例化**一次性**的`options.KubeletFlags`结构，此处假定为`kf`
         > * 向`fs`注册了`kubelet`所有的`flags`, 值与`kf`的字段绑定，实质上放弃了对传入`KubeletFlags`参数值的读取
-    
+  
       * `options.AddKubeletConfigFlags(fs, kc)`
-    
-        > 向`fs`注册`KubeletConfig`的`flag`，因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
-        >
-        > 但是，此函数会真实的将`fs`解析到的`flags`值绑定到`kc`中的字段，因此后面针对`KubeletConfig`有一个额外数据写回操作
-    
-      
+  
+        > * 以旧的`KubeletConfig`的值作为默认值向`fs`注册`flag`，因此如果命令行参数重新制定，将会覆盖旧值，否则保持不变
+        > * 因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
+  
+      * 对于之前有值，但是用`flag`时没有指定的`KubeletConfig.FeatureGates`参数，使用旧数据进行写回，使得尽可能保留旧的特性开关状态
+  
+        ```go
+        for k, v := range original {
+            if _, ok := kc.FeatureGates[k]; !ok {
+                kc.FeatureGates[k] = v 					// 值不存在时原值写回，存在（即从命令行参数读取到对应的flag）则使用新值
+            }
+        }
+        ```
+  
+      * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
+  
+        > 由于上面更新了`Kubeconfig`的值，因此同步更新k8s alpha/experimental版本特性开闭状态
 
