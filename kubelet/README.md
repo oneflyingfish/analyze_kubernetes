@@ -1,6 +1,16 @@
 <h2 align="center">Kubelet源码阅读笔记</h2>
 
-> 主体程序路径：kubernetes/cmd/kubelet
+> 主体程序路径：`kubernetes/cmd/kubelet`
+>
+> 实验环境：
+>
+> * 服务器：
+>   * 系统：`Centos 7.9`
+>   * go：`v1.17.5`
+> * 本地：
+>   * 系统：`Windows 10`
+>   * 开发环境：`VS Code` + `SSH-Remote`
+> * kubernetes：`v1.23.1`
 
 #### 1. 目录结构
 
