@@ -11,6 +11,8 @@
 >   * 系统：`Windows 10`
 >   * 开发环境：`VS Code` + `SSH-Remote`
 > * kubernetes：`v1.23.1`
+>
+> 说明：为了阅读方便，快速抓住核心，本文中的示例代码在源代码的基础上可能存在略微调整、伪代码化等等操作。
 
 #### 1. 目录结构
 
@@ -154,6 +156,7 @@ func NewKubeletCommand() *cobra.Command {
 
   * type: option.KubeletFlags
   * 作用：从`kubelet`命令启动时追加的参数（Flags）初始化结构
+  * **集群各node节点之间不共享的配置集**
 
 * 默认初始化kubeletConfig结构
 
@@ -166,6 +169,8 @@ func NewKubeletCommand() *cobra.Command {
   * 作用：从配置文件`--kubeconfig=$PATH/kubelet.kubeconfig`获取的参数初始化结构
 
     * Node节点在CSR证书申请被批准后，自动在本地生成`kubelet.kubeconfig`，下次启动将根据此配置文件直接注册，而不用再次发起请求
+
+  * **集群各node节点之间共享的配置集**
 
   * `kubelet.kubeconfig`文件内容示例：
 
@@ -336,6 +341,21 @@ func NewKubeletCommand() *cobra.Command {
             return os.Remove(real_name)
         }
         // ...
+        ```
+    
+      * `loader := configfiles.NewFsLoader(...)`
+    
+        ```go
+        func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
+        
+            // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
+            
+        	return &fsLoader{
+        		fs:            fs,
+        		kubeletCodecs: kubeletCodecs,
+        		kubeletFile:   kubeletFile,
+        	}, nil
+        }
         ```
     
         
