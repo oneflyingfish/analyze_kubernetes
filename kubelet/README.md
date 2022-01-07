@@ -385,6 +385,16 @@ func NewKubeletCommand() *cobra.Command {
     
     * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
     
+      > * 首先构造了一个假的全局`pflag.FlagSet`(实际上并不会使用，仅仅是局部变量)变量`fs`
+      > * 将包含`KubeletConfig`在内的`flag`（实际上基于flag指定的方式已经被弃用，要求用`--config=$file`的方式指定）在其中注册。
+      > * `fs`解析命令行传入的所有参数，此步骤有可能改变了传入的`KubeletConfig`的值，因此暂存原来的值
+      > * 恢复`kubeconfig`的原值
+      >
+      >
+      > 说明：整体读下来，疑似做了一个无用功，仅仅是虚假注册了包含`KubeletConfig`在内的所有`flags`，实际上并不会生效。
+      >
+      > 存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171
+    
       * `newFlagSetWithGlobals()`
     
         > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
@@ -402,7 +412,16 @@ func NewKubeletCommand() *cobra.Command {
         }
         ```
     
-        
+      * `options.NewKubeletFlags().AddFlags(fs)`
+    
+        > * 实例化**一次性**的`options.KubeletFlags`结构，此处假定为`kf`
+        > * 向`fs`注册了`kubelet`所有的`flags`, 值与`kf`的字段绑定，实质上放弃了对传入`KubeletFlags`参数值的读取
+    
+      * `options.AddKubeletConfigFlags(fs, kc)`
+    
+        > 向`fs`注册`KubeletConfig`的`flag`，因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
+        >
+        > 但是，此函数会真实的将`fs`解析到的`flags`值绑定到`kc`中的字段，因此后面针对`KubeletConfig`有一个额外数据写回操作
     
       
 
