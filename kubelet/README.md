@@ -321,7 +321,7 @@ func NewKubeletCommand() *cobra.Command {
     
     * 对容器运行时为`remote`时可能出现的错误给出提示
     
-    * 从磁盘文件`kubelet.kubeconfig`读取配置文件
+    * 从磁盘文件`kubelet.kubeconfig`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
     
       * `DefaultFs`
     
@@ -361,7 +361,6 @@ func NewKubeletCommand() *cobra.Command {
       * 数据读取以及格式化
     
         ```go
-        
         func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
         	data, err := loader.fs.ReadFile(loader.kubeletFile)
         
@@ -384,7 +383,26 @@ func NewKubeletCommand() *cobra.Command {
         }
         ```
     
+    * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
+    
+      * `newFlagSetWithGlobals()`
+    
+        > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
+    
+      * `newFakeFlagSet(...)`
+    
+        > 在`newFlagSetWithGlobals()`的基础上创建一个增强版`*pflag.FlagSet`结构，实质上仅仅把所有的Value绑定到了一个空结构体
+    
+        延伸参考：
+    
+        ```go
+        // 对f中的所有flag以字母顺序或字典顺序执行：fn(flag)
+        func (f *FlagSet) VisitAll(fn func(*Flag)){
+            // ...
+        }
+        ```
+    
         
-
-
+    
+      
 
