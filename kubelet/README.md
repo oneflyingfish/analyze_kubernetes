@@ -72,14 +72,14 @@ func NewKubeletCommand() *cobra.Command {
 
   * 拓展：
 
-    * pflag的两种使用方式
+    * pflag的三种使用方式
 
       > import "github.com/spf13/pflag"
 
       * 方式一：
     
         ```go
-        flagSet := pflag.NewFlagSet("main", flag.ExitOnError)
+        flagSet := pflag.NewFlagSet("main", pflag.ExitOnError)
         
         version := flagSet.BoolP("version", "v", false, "print version string")		// 参数定义
         flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
@@ -94,6 +94,17 @@ func NewKubeletCommand() *cobra.Command {
         ```
       
       * 方式二：
+      
+        ```go
+        flagSet := pflag.NewFlagSet("main", pflag.ExitOnError)
+        flagSet.Parse(os.Args[1:])													// 解析：命令应用启动参数
+        value, _ := flagSet.GetBool("version")										// 读取：使用参数
+        fmt.Println(value)
+        ```
+      
+        
+      
+      * 方式三：
       
         ```go
         version := pflag.BoolP("version","v", false, "print version string")		// 参数定义
@@ -211,9 +222,15 @@ func NewKubeletCommand() *cobra.Command {
 
     > 即执行kubelet命令时的调用入口函数
 
-    ```go
-    cleanFlagSet.Parse(args)	// 解析程序flags
-    ```
+    * 对程序的输入命令进行解析，判断输入参数合法性
+      * `cleanFlagSet.Parse(args)`
+        * 解析程序flags
+        * 如果出现有未定义的flags，将返回error
+      * `cleanFlagSet.Args()`
+        * 解析程序子命令
+        * kubelet并不支持子命令，将直接报错并结束程序
+
+    * 
 
     
 
