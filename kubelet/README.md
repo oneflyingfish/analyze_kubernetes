@@ -166,44 +166,37 @@ func NewKubeletCommand() *cobra.Command {
 
   * type: `config.kubeletConfiguration`
 
-  * 作用：从配置文件`--config=$PATH/kubelet.json`获取的参数后期存储到该结构
+  * 作用：从配置文件`--config=$PATH/kubelet.config`获取的参数后期存储到该结构
 
   * **集群各node节点之间共享的配置集**
 
-  * `kubelet.json`文件内容示例：
+  * `kubelet.config`文件内容示例：
 
-    ```json
-    {
-        "kind": "KubeletConfiguration",
-        "apiVersion": "kubelet.config.k8s.io/v1beta1",
-        "authentication": {
-            "x509": {
-                "clientCAFile": "/opt/kubernetes/ssl/ca.pem"
-            },
-            "webhook": {
-                "enabled": true,
-                "cacheTTL": "2m0s"
-            },
-            "anonymous": {
-                "enabled": false
-            }
-        },
-        "authorization": {
-            "mode": "Webhook",
-            "webhook": {
-                "cacheAuthorizedTTL": "5m0s",
-                "cacheUnauthorizedTTL": "30s"
-            }
-        },
-        "address": "$NODE_IP",
-        "port": 10250,
-        "readOnlyPort": 10255,
-        "cgroupDriver": "systemd",                    
-        "hairpinMode": "promiscuous-bridge",
-        "serializeImagePulls": false,
-        "clusterDomain": "cluster.local.",
-        "clusterDNS": ["10.0.0.2"]
-    }
+    ```yaml
+    kind: KubeletConfiguration
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    authentication:
+      x509:
+        clientCAFile: /opt/kubernetes/ssl/ca.pem
+      webhook:
+        enabled: true
+        cacheTTL: 2m0s
+      anonymous:
+        enabled: false
+    authorization:
+      mode: Webhook
+      webhook:
+        cacheAuthorizedTTL: 5m0s
+        cacheUnauthorizedTTL: 30s
+    address: $NODE_IP
+    port: 10250
+    readOnlyPort: 10255
+    cgroupDriver: systemd
+    hairpinMode: promiscuous-bridge
+    serializeImagePulls: false
+    clusterDomain: cluster.local.
+    clusterDNS:
+      - 10.0.0.2
     ```
 
 * cmd初始化
@@ -339,7 +332,7 @@ func NewKubeletCommand() *cobra.Command {
       >
       > 说明：巧妙的用了一个临时`pflag.FlagSet`而非最终保留的`FlagSet`结构来对命令行参数进行再次解析，不会因此影响到`KubeletFlags`，避免了整个应用的重复解析问题。
       
-      * 从磁盘文件`kubelet.json`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
+      * 从磁盘文件`kubelet.config`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
       
           * `DefaultFs`
       
@@ -391,7 +384,7 @@ func NewKubeletCommand() *cobra.Command {
                 // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
                 paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
         
-                // 读取kubelet.json文件所在目录，作为root目录
+                // 读取kubelet.config文件所在目录，作为root目录
                 root_dir := filepath.Dir(loader.kubeletFile)
         
                 // 将kubeletconfig结构中所有字段的目录，修改为：
@@ -483,10 +476,12 @@ func NewKubeletCommand() *cobra.Command {
         > * `kubeletConfig.KubeletCgroups`可由`--kubelet-cgroups`指定：创建和运行Kubelet的cgroups的绝对名称。
         > * `kubeletConfig.KubeReservedCgroup`可由`--kube-reserved-cgroup`指定：顶级cgroup的绝对名称，用于管理通过`--system-reserved`标志预留计算资源的非`kubernetes`组件，例如`"/system-reserverd"`默认为`""`
     
-    * 动态`KubeletConfig`配置: 
+    * 动态`KubeletConfig`配置:  **指定此参数时，本地的`--config`将不起作用**
     
-      > `--dynamic-config-dir`指定目录，需确保`KubeletConfig.FeatureGates`的`DynamicKubeletConfig`功能开启。
-      >
+      > `--dynamic-config-dir`指定目录，需确保`KubeletConfig.FeatureGates`的`DynamicKubeletConfig`功能开启。关于此功能具体说明详见：https://kubernetes.io/blog/2018/07/11/dynamic-kubelet-configuration/
+    
+      方式：
+    
       >
       > 内部会通过` BootstrapKubeletConfigController(...)`创建并引导一个`Configuration控制器`，该控制器通过函数委托的方式，通过`KubeletConfig`的结构体指针和`kubeletConfigFlagPrecedence`（上面提及过），完成对`Kubeletconfig`的动态刷新
 
