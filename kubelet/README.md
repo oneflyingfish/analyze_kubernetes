@@ -485,3 +485,7 @@ func NewKubeletCommand() *cobra.Command {
       >
       > 内部会通过` BootstrapKubeletConfigController(...)`创建并引导一个`Configuration控制器`，该控制器通过函数委托的方式，通过`KubeletConfig`的结构体指针和`kubeletConfigFlagPrecedence`（上面提及过），完成对`Kubeletconfig`的动态刷新
 
+​					高级别流程描述：
+
+<img src="README/image-20220108133522992.png" alt="image-20220108133522992" style="zoom: 67%;" />
+
