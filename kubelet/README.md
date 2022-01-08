@@ -154,47 +154,56 @@ func NewKubeletCommand() *cobra.Command {
   kubeletFlags := options.NewKubeletFlags()
   ```
 
-  * type: option.KubeletFlags
-  * 作用：从`kubelet`命令启动时追加的参数（Flags）初始化结构
+  * type: `option.KubeletFlags`
+  * 作用：从`kubelet`命令启动时追加的参数（Flags）后期存储到该结构
   * **集群各node节点之间不共享的配置集**
 
-* 默认初始化kubeletConfig结构
+* 默认初始化`kubeletConfig`结构
 
   ```go
   kubeletConfig, err := options.NewKubeletConfiguration()
   ```
 
-  * type: config.kubeletConfiguration
+  * type: `config.kubeletConfiguration`
 
-  * 作用：从配置文件`--kubeconfig=$PATH/kubelet.kubeconfig`获取的参数初始化结构
-
-    * Node节点在CSR证书申请被批准后，自动在本地生成`kubelet.kubeconfig`，下次启动将根据此配置文件直接注册，而不用再次发起请求
+  * 作用：从配置文件`--config=$PATH/kubelet.json`获取的参数后期存储到该结构
 
   * **集群各node节点之间共享的配置集**
 
-  * `kubelet.kubeconfig`文件内容示例：
+  * `kubelet.json`文件内容示例：
 
-    ```yaml
-    apiVersion: v1
-    clusters:
-    - cluster:
-        certificate-authority-data: LS0tLS1CR......LS0tLS0K
-        server: https://$Master_IP:6443
-      name: default-cluster
-    contexts:
-    - context:
-        cluster: default-cluster
-        namespace: default
-        user: default-auth
-      name: default-context
-    current-context: default-context
-    kind: Config
-    preferences: {}
-    users:
-    - name: default-auth
-      user:
-        client-certificate: $PATH/ssl/kubelet-client-current.pem
-        client-key: $PATH/ssl/kubelet-client-current.pem
+    ```json
+    {
+        "kind": "KubeletConfiguration",
+        "apiVersion": "kubelet.config.k8s.io/v1beta1",
+        "authentication": {
+            "x509": {
+                "clientCAFile": "/opt/kubernetes/ssl/ca.pem"
+            },
+            "webhook": {
+                "enabled": true,
+                "cacheTTL": "2m0s"
+            },
+            "anonymous": {
+                "enabled": false
+            }
+        },
+        "authorization": {
+            "mode": "Webhook",
+            "webhook": {
+                "cacheAuthorizedTTL": "5m0s",
+                "cacheUnauthorizedTTL": "30s"
+            }
+        },
+        "address": "$NODE_IP",
+        "port": 10250,
+        "readOnlyPort": 10255,
+        "cgroupDriver": "systemd",                    
+        "hairpinMode": "promiscuous-bridge",
+        "serializeImagePulls": false,
+        "clusterDomain": "cluster.local.",
+        "clusterDNS": ["10.0.0.2"]
+    }
     ```
 
 * cmd初始化
@@ -330,7 +339,7 @@ func NewKubeletCommand() *cobra.Command {
       >
       > 说明：巧妙的用了一个临时`pflag.FlagSet`而非最终保留的`FlagSet`结构来对命令行参数进行再次解析，不会因此影响到`KubeletFlags`，避免了整个应用的重复解析问题。
       
-      * 从磁盘文件`kubelet.kubeconfig`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
+      * 从磁盘文件`kubelet.json`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
       
           * `DefaultFs`
       
@@ -382,10 +391,10 @@ func NewKubeletCommand() *cobra.Command {
                 // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
                 paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
         
-                // 读取kubelet.kubeconfig文件所在目录，作为root目录
+                // 读取kubelet.json文件所在目录，作为root目录
                 root_dir := filepath.Dir(loader.kubeletFile)
         
-                // 将kubeconfig结构中所有字段的目录，修改为：
+                // 将kubeletconfig结构中所有字段的目录，修改为：
                 // *path = filepath.Join(root_dir, *path)
                 resolveRelativePaths(paths, root_dir)
                 return kc, nil
@@ -395,22 +404,37 @@ func NewKubeletCommand() *cobra.Command {
       * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
       
           > * 首先构造了一个假的全局`pflag.FlagSet`(实际上并不会使用，仅仅是局部变量)变量`fs`
-          >* 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，并均标记为`Deprecated`
+          >
+          > * 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，并均标记为`Deprecated`
+          >
           > * `fs`解析命令行传入的所有参数，如果参数指定了`KubeletConfig`的值，将会覆盖上述默认值
-          >* 针对`KubeletConfig.FeatureGates`取并集，冲突时优先级：命令行参数 > 配置文件
+          >
+          > * 针对`KubeletConfig.FeatureGates`取并集，冲突时优先级：命令行参数 > 配置文件
+          >
           > * 写回`KubeletConfig.FeatureGates`的原值
           >
-          > 
-          >说明：即针对`Kubeletconfig`参数配置优先级：命令行参数 > 配置文件，同时在命令行未特殊指定的情况下，保留原始的`KubeletConfig.FeatureGates`值（特性开启/关闭状态尽可能不变）。**该过程不会影响到`KubeletFlags`**的值
-          >   
-          >存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （保证二进制版本向后兼容）
-          
+          >   ```shell
+          >   // 命令行指定feature-gates的示例
+          >   --feature-gates \
+          >       APIListChunking=true|false (BETA - default=true) \
+          >       APIPriorityAndFairness=true|false (ALPHA - default=false) \
+          >       APIResponseCompression=true|false (BETA - default=true) \
+          >       AllAlpha=true|false (ALPHA - default=false) 
+          >       .... \
+          >       WinOverlay=true|false (ALPHA - default=false)
+          >   ```
+          >
+          >
+          > 说明：即针对`Kubeletconfig`参数配置优先级：命令行参数 > 配置文件，同时在命令行未特殊指定的情况下，保留原始的`KubeletConfig.FeatureGates`值（特性开启/关闭状态尽可能不变）。**该过程不会影响到`KubeletFlags`**的值
+          >
+          > 存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （保证二进制版本向后兼容）
+      
       * `newFlagSetWithGlobals()`
       
         > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
-      
+  
       * `newFakeFlagSet(...)`
-      
+  
         > 在`newFlagSetWithGlobals()`的基础上创建一个增强版`*pflag.FlagSet`结构，实质上仅仅把所有的Value绑定到了一个空结构体
       
         延伸参考：
@@ -428,7 +452,7 @@ func NewKubeletCommand() *cobra.Command {
         > * 向`fs`注册了`kubelet`所有的`flags`, 值与`kf`的字段绑定，实质上放弃了对传入`KubeletFlags`参数值的读取
       
       * `options.AddKubeletConfigFlags(fs, kc)`
-  
+      
         > * 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，因此如果命令行参数重新制定，将会覆盖默认值，否则保持不变
         > * 因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
       
@@ -444,7 +468,7 @@ func NewKubeletCommand() *cobra.Command {
       
       * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
       
-        > 由于上面更新了`Kubeconfig`的值，因此同步更新k8s alpha/experimental版本特性开闭状态
+        > 由于上面更新了`Kubeletconfig`的值，因此同步更新k8s alpha/experimental版本特性开闭状态
     
     * 验证`kubeletConfig`的内容是否合法：
     
@@ -459,6 +483,10 @@ func NewKubeletCommand() *cobra.Command {
         > * `kubeletConfig.KubeletCgroups`可由`--kubelet-cgroups`指定：创建和运行Kubelet的cgroups的绝对名称。
         > * `kubeletConfig.KubeReservedCgroup`可由`--kube-reserved-cgroup`指定：顶级cgroup的绝对名称，用于管理通过`--system-reserved`标志预留计算资源的非`kubernetes`组件，例如`"/system-reserverd"`默认为`""`
     
-    * 动态`KubeletConfig`配置: `--dynamic-config-dir`指定，需将`KubeletConfig.FeatureGates`的`DynamicKubeletConfig`功能开启
+    * 动态`KubeletConfig`配置: 
     
-      > 
+      > `--dynamic-config-dir`指定目录，需确保`KubeletConfig.FeatureGates`的`DynamicKubeletConfig`功能开启。
+      >
+      >
+      > 内部会通过` BootstrapKubeletConfigController(...)`创建并引导一个`Configuration控制器`，该控制器通过函数委托的方式，通过`KubeletConfig`的结构体指针和`kubeletConfigFlagPrecedence`（上面提及过），完成对`Kubeletconfig`的动态刷新
+
