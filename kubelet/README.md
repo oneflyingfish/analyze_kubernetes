@@ -12,7 +12,7 @@
 >   * 开发环境：`VS Code` + `SSH-Remote`
 > * kubernetes：`v1.23.1`
 >
-> 说明：为了阅读方便，快速抓住核心，本文中的示例代码在源代码的基础上可能存在略微调整、伪代码化等等操作。
+> 说明：为了阅读方便，快速抓住核心，本文中的示例代码在源代码的基础上可能存在略微调整、伪代码化等等操作。如果阅读时存在排版疑问，请以文档原始编辑器(`typora v0.11.17 beta for windows`)为准
 
 #### 1. 目录结构
 
@@ -328,15 +328,14 @@ func NewKubeletCommand() *cobra.Command {
       > 特例：针对`KubeletConfig.FeatureGates`，未冲突字段采用合并的方式，冲突字段优先级：命令行>配置文件
       >
       >
-      > 
       > 说明：巧妙的用了一个临时`pflag.FlagSet`而非最终保留的`FlagSet`结构来对命令行参数进行再次解析，不会因此影响到`KubeletFlags`，避免了整个应用的重复解析问题。
-
+      
       * 从磁盘文件`kubelet.kubeconfig`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
       
           * `DefaultFs`
       
             > `utilfs.DefaultFs`实质上是对默认OS文件操作的一种封装，目的是可以自动的在所有传入的文件path前面自动加上一个`root`路径
-      
+
             代码：
       
             ```go
@@ -347,19 +346,19 @@ func NewKubeletCommand() *cobra.Command {
             // 实现举例
             func (fs *DefaultFs) Remove(name string) error {
                 real_name := filepath.Join(fs.root, name)		// 自动加上前缀
-      
+
                 return os.Remove(real_name)
             }
             // ...
             ```
-      
+
           * `loader := configfiles.NewFsLoader(...)`
       
             ```go
             func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
       
                 // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
-
+      
                 return &fsLoader{
                     fs:            fs,				// 即为DefaultFs类型
                     kubeletCodecs: kubeletCodecs,
@@ -367,9 +366,9 @@ func NewKubeletCommand() *cobra.Command {
                 }, nil
             }
             ```
-
+      
           * 数据读取以及格式化
-
+      
             ```go
             func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
                 data, err := loader.fs.ReadFile(loader.kubeletFile)
@@ -407,11 +406,11 @@ func NewKubeletCommand() *cobra.Command {
           >存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （保证二进制版本向后兼容）
           
       * `newFlagSetWithGlobals()`
-  
+      
         > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
-  
+      
       * `newFakeFlagSet(...)`
-  
+      
         > 在`newFlagSetWithGlobals()`的基础上创建一个增强版`*pflag.FlagSet`结构，实质上仅仅把所有的Value绑定到了一个空结构体
       
         延伸参考：
@@ -424,12 +423,12 @@ func NewKubeletCommand() *cobra.Command {
         ```
       
       * `options.NewKubeletFlags().AddFlags(fs)`
-      
+  
         > * 实例化**一次性**的`options.KubeletFlags`结构，此处假定为`kf`
         > * 向`fs`注册了`kubelet`所有的`flags`, 值与`kf`的字段绑定，实质上放弃了对传入`KubeletFlags`参数值的读取
       
       * `options.AddKubeletConfigFlags(fs, kc)`
-      
+  
         > * 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，因此如果命令行参数重新制定，将会覆盖默认值，否则保持不变
         > * 因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
       
@@ -446,4 +445,20 @@ func NewKubeletCommand() *cobra.Command {
       * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
       
         > 由于上面更新了`Kubeconfig`的值，因此同步更新k8s alpha/experimental版本特性开闭状态
-
+    
+    * 验证`kubeletConfig`的内容是否合法：
+    
+      * `kubeletconfigvalidation.ValidateKubeletConfiguration(kubeletConfig)`保证内容格式合法
+    
+      * 确保`kubeletConfig.KubeReservedCgroup`为`kubeletConfig.KubeletCgroups`首部开始的子字符串，即`KubeReservedCgroup`路径为`KubeletCgroups`的子路径
+    
+        > 延伸阅读：
+        >
+        > `cgroup`（control group）是Linux内核的一项功能，提供了一系列资源管理控制器，由`systemd`自动挂载，用来控制进程对资源的分配，包括CPU、内存、网络带宽等
+        >
+        > * `kubeletConfig.KubeletCgroups`可由`--kubelet-cgroups`指定：创建和运行Kubelet的cgroups的绝对名称。
+        > * `kubeletConfig.KubeReservedCgroup`可由`--kube-reserved-cgroup`指定：顶级cgroup的绝对名称，用于管理通过`--system-reserved`标志预留计算资源的非`kubernetes`组件，例如`"/system-reserverd"`默认为`""`
+    
+    * 动态`KubeletConfig`配置: `--dynamic-config-dir`指定，需将`KubeletConfig.FeatureGates`的`DynamicKubeletConfig`功能开启
+    
+      > 
