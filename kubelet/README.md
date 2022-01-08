@@ -374,19 +374,19 @@ func NewKubeletCommand() *cobra.Command {
             ```go
             func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
                 data, err := loader.fs.ReadFile(loader.kubeletFile)
-        
+          
                 // ...
-        
+          
                 kc, err := utilcodec.DecodeKubeletConfiguration(loader.kubeletCodecs, data)
-        
+          
                 // ...
-        
+          
                 // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
                 paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
-        
+          
                 // 读取kubelet.config文件所在目录，作为root目录
                 root_dir := filepath.Dir(loader.kubeletFile)
-        
+          
                 // 将kubeletconfig结构中所有字段的目录，修改为：
                 // *path = filepath.Join(root_dir, *path)
                 resolveRelativePaths(paths, root_dir)
@@ -482,10 +482,8 @@ func NewKubeletCommand() *cobra.Command {
     
       方式：
     
-      >
       > 内部会通过` BootstrapKubeletConfigController(...)`创建并引导一个`Configuration控制器`，该控制器通过函数委托的方式，通过`KubeletConfig`的结构体指针和`kubeletConfigFlagPrecedence`（上面提及过），完成对`Kubeletconfig`的动态刷新
-
-​					高级别流程描述：
-
-<img src="README/image-20220108133522992.png" alt="image-20220108133522992" style="zoom: 67%;" />
+    
+      高级别流程描述：
+      <img src="README/image-20220108133522992.png" alt="image-20220108133522992" style="zoom: 67%;" />
 
