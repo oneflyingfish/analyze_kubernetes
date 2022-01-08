@@ -14,40 +14,46 @@
 >
 > 说明：为了阅读方便，快速抓住核心，本文中的示例代码在源代码的基础上可能存在略微调整、伪代码化等等操作。如果阅读时存在排版疑问，请以文档原始编辑器(`typora v0.11.17 beta for windows`)为准
 
-#### 1. 目录结构
+#### 1. 简介
 
-```shell
-kubelet/
-├── app
-│   ├── auth.go
-│   ├── init_others.go
-│   ├── init_windows.go
-│   ├── init_windows_test.go
-│   ├── options
-│   │   ├── container_runtime.go
-│   │   ├── globalflags.go
-│   │   ├── globalflags_linux.go
-│   │   ├── globalflags_other.go
-│   │   ├── globalflags_providerless.go
-│   │   ├── globalflags_providers.go
-│   │   ├── options.go
-│   │   ├── options_test.go
-│   │   ├── osflags_others.go
-│   │   └── osflags_windows.go
-│   ├── OWNERS
-│   ├── plugins.go
-│   ├── plugins_providerless.go
-│   ├── plugins_providers.go
-│   ├── server_bootstrap_test.go
-│   ├── server.go
-│   ├── server_linux.go
-│   ├── server_others.go
-│   ├── server_test.go
-│   ├── server_unsupported.go
-│   └── server_windows.go
-├── kubelet.go
-└── OWNERS
-```
+* 主要源码结构
+
+    ```shell
+    kubelet/
+    ├── app
+    │   ├── auth.go
+    │   ├── init_others.go
+    │   ├── init_windows.go
+    │   ├── init_windows_test.go
+    │   ├── options
+    │   │   ├── container_runtime.go
+    │   │   ├── globalflags.go
+    │   │   ├── globalflags_linux.go
+    │   │   ├── globalflags_other.go
+    │   │   ├── globalflags_providerless.go
+    │   │   ├── globalflags_providers.go
+    │   │   ├── options.go
+    │   │   ├── options_test.go
+    │   │   ├── osflags_others.go
+    │   │   └── osflags_windows.go
+    │   ├── OWNERS
+    │   ├── plugins.go
+    │   ├── plugins_providerless.go
+    │   ├── plugins_providers.go
+    │   ├── server_bootstrap_test.go
+    │   ├── server.go
+    │   ├── server_linux.go
+    │   ├── server_others.go
+    │   ├── server_test.go
+    │   ├── server_unsupported.go
+    │   └── server_windows.go
+    ├── kubelet.go
+    └── OWNERS
+    ```
+
+* 内部组件架构
+
+  ![image-20220108144941915](README/image-20220108144941915.png)
 
 #### 2. 程序入口：
 
@@ -331,20 +337,20 @@ func NewKubeletCommand() *cobra.Command {
       >
       >
       > 说明：巧妙的用了一个临时`pflag.FlagSet`而非最终保留的`FlagSet`结构来对命令行参数进行再次解析，不会因此影响到`KubeletFlags`，避免了整个应用的重复解析问题。
-      
+  
       * 从磁盘文件`kubelet.config`读取配置文件: `kubeletConfig,err = loadConfigFile(configFile)`
-      
+  
           * `DefaultFs`
-      
+  
             > `utilfs.DefaultFs`实质上是对默认OS文件操作的一种封装，目的是可以自动的在所有传入的文件path前面自动加上一个`root`路径
 
             代码：
-      
+  
             ```go
             type DefaultFs struct {
                 root string
             }
-      
+  
             // 实现举例
             func (fs *DefaultFs) Remove(name string) error {
                 real_name := filepath.Join(fs.root, name)		// 自动加上前缀
@@ -355,12 +361,12 @@ func NewKubeletCommand() *cobra.Command {
             ```
 
           * `loader := configfiles.NewFsLoader(...)`
-      
+  
             ```go
             func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
-      
+  
                 // 此处初始化一个kubelet的默认文件编解码器：kubeletCodecs
-      
+  
                 return &fsLoader{
                     fs:            fs,				// 即为DefaultFs类型
                     kubeletCodecs: kubeletCodecs,
@@ -368,34 +374,34 @@ func NewKubeletCommand() *cobra.Command {
                 }, nil
             }
             ```
-      
+  
           * 数据读取以及格式化
-      
+  
             ```go
             func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
                 data, err := loader.fs.ReadFile(loader.kubeletFile)
-          
+            
                 // ...
-          
+            
                 kc, err := utilcodec.DecodeKubeletConfiguration(loader.kubeletCodecs, data)
-          
+            
                 // ...
-          
+            
                 // 读取kubeletconfig结构中所有路径字段的指针，形成 []*string
                 paths := kubeletconfig.KubeletConfigurationPathRefs(kc)
-          
+            
                 // 读取kubelet.config文件所在目录，作为root目录
                 root_dir := filepath.Dir(loader.kubeletFile)
-          
+            
                 // 将kubeletconfig结构中所有字段的目录，修改为：
                 // *path = filepath.Join(root_dir, *path)
                 resolveRelativePaths(paths, root_dir)
                 return kc, nil
             }
             ```
-      
+  
       * `kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration, args []string)`
-      
+  
           > * 首先构造了一个假的全局`pflag.FlagSet`(实际上并不会使用，仅仅是局部变量)变量`fs`
           >
           > * 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，并均标记为`Deprecated`
@@ -421,36 +427,36 @@ func NewKubeletCommand() *cobra.Command {
           > 说明：即针对`Kubeletconfig`参数配置优先级：命令行参数 > 配置文件，同时在命令行未特殊指定的情况下，保留原始的`KubeletConfig.FeatureGates`值（特性开启/关闭状态尽可能不变）。**该过程不会影响到`KubeletFlags`**的值
           >
           > 存在原因：为了解决issue#56171: https://github.com/kubernetes/kubernetes/issues/56171 （保证二进制版本向后兼容）
-      
+  
       * `newFlagSetWithGlobals()`
-      
+  
         > 实例化一个`*pflag.FlagSet`结构，拥有全局的`flag.FlagSet`（即`flag.CommandLine`)所拥有的所有`flags`(除了技术限制外，都被标记为`Deprecated`)
   
       * `newFakeFlagSet(...)`
   
         > 在`newFlagSetWithGlobals()`的基础上创建一个增强版`*pflag.FlagSet`结构，实质上仅仅把所有的Value绑定到了一个空结构体
-      
+  
         延伸参考：
-      
+  
         ```go
         // 对f中的所有flag以字母顺序或字典顺序执行：fn(flag)
         func (f *FlagSet) VisitAll(fn func(*Flag)){
             // ...
         }
         ```
-      
+  
       * `options.NewKubeletFlags().AddFlags(fs)`
   
         > * 实例化**一次性**的`options.KubeletFlags`结构，此处假定为`kf`
         > * 向`fs`注册了`kubelet`所有的`flags`, 值与`kf`的字段绑定，实质上放弃了对传入`KubeletFlags`参数值的读取
-      
+  
       * `options.AddKubeletConfigFlags(fs, kc)`
-      
+  
         > * 以配置文件的`KubeletConfig`的值作为默认值向`fs`注册`flag`，因此如果命令行参数重新制定，将会覆盖默认值，否则保持不变
         > * 因为在后期版本中，这些字段都被迁移到通过`--config=$file`中的`$file`指定，因此标记为`Deprecated`
-      
+  
       * 对于配置文件有值，但是命令行参数没有指定的`KubeletConfig.FeatureGates`参数，使用配置文件的值进行补充写回，达到合并目的。冲突字段则优先级：命令行参数 > 配置文件
-      
+  
         ```go
         for k, v := range original {
             if _, ok := kc.FeatureGates[k]; !ok {
@@ -458,32 +464,169 @@ func NewKubeletCommand() *cobra.Command {
             }
         }
         ```
-      
+  
       * `utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates)`
-      
+  
         > 由于上面更新了`Kubeletconfig`的值，因此同步更新k8s alpha/experimental版本特性开闭状态
-    
+  
     * 验证`kubeletConfig`的内容是否合法：
-    
+  
       * `kubeletconfigvalidation.ValidateKubeletConfiguration(kubeletConfig)`保证内容格式合法
-    
+  
       * 确保`kubeletConfig.KubeReservedCgroup`为`kubeletConfig.KubeletCgroups`首部开始的子字符串，即`KubeReservedCgroup`路径为`KubeletCgroups`的子路径
-    
+  
         > 延伸阅读：
         >
         > `cgroup`（control group）是Linux内核的一项功能，提供了一系列资源管理控制器，由`systemd`自动挂载，用来控制进程对资源的分配，包括CPU、内存、网络带宽等
         >
         > * `kubeletConfig.KubeletCgroups`可由`--kubelet-cgroups`指定：创建和运行Kubelet的cgroups的绝对名称。
         > * `kubeletConfig.KubeReservedCgroup`可由`--kube-reserved-cgroup`指定：顶级cgroup的绝对名称，用于管理通过`--system-reserved`标志预留计算资源的非`kubernetes`组件，例如`"/system-reserverd"`默认为`""`
-    
+  
     * 动态`KubeletConfig`配置:  **指定此参数时，本地的`--config`将不起作用**
-    
+  
       > `--dynamic-config-dir`指定目录，需确保`KubeletConfig.FeatureGates`的`DynamicKubeletConfig`功能开启。关于此功能具体说明详见：https://kubernetes.io/blog/2018/07/11/dynamic-kubelet-configuration/
-    
+  
       方式：
-    
+  
       > 内部会通过` BootstrapKubeletConfigController(...)`创建并引导一个`Configuration控制器`，该控制器通过函数委托的方式，通过`KubeletConfig`的结构体指针和`kubeletConfigFlagPrecedence`（上面提及过），完成对`Kubeletconfig`的动态刷新
-    
+  
       高级别流程描述：
       <img src="README/image-20220108133522992.png" alt="image-20220108133522992" style="zoom: 67%;" />
+  
+    * 初始化日志记录，并记录启动时读取到的所有的`flags`(包括`name`和`value`)。
+  
+      > 注意：
+      >
+      > * 推荐写入`KubeletConfig`中的配置参数，实质上也被注册为`flag`（虽然标记为`Deprecated`），因此也会包含在内
+      >
+      > * 启动`kubelet`时没有显示赋值的`flag`也会包含默认值，因此也会包含在内
+      > * 由于`kubeletConfig`的结构字段是以指针的形式与`flag`绑定，因此读入`kubeletconfig`配置文件，影响到最终记录的这部分`flags`的值。即此处记录到的`flags`是指代所有（命令行参数+配置文件）读入的参数的值。
+  
+    * 创建`kubeletServer`结构
+  
+      ```go
+      // 实质上即包含了kubelet所有启动参数（命令行参数[kubeletFlags] + 配置文件引入[KubeletConfig]）的结构体
+      kubeletServer := &options.KubeletServer{
+          KubeletFlags:         *kubeletFlags,
+          KubeletConfiguration: *kubeletConfig,
+      }
+      ```
+  
+    * 初始化`kubeletDeps := UnsecuredDependencies(...)`
+  
+      > 此处内部会检查TLS证书、私钥等等信息。注意：它内部不会启动任何进程，仅返回适合运行的依赖项或错误
+      >
+      >  实质是是运行`Kubelet`所必须依赖的操作接口结合，它们在运行时逐渐完善。(例如：`对容器的操作`依赖于`对容器运行时接口的实现`)
+  
+      ```go
+      // 查看它的结构，实际上是一个接口集合，包括对卷、容器运行时、kube-apiserver等操作的接口
+      type Dependencies struct {
+      	Options []Option
+      
+      	// Injected Dependencies
+      	Auth                    server.AuthInterface
+      	CAdvisorInterface       cadvisor.Interface
+      	Cloud                   cloudprovider.Interface
+      	ContainerManager        cm.ContainerManager
+      	DockerOptions           *DockerOptions						// 此处被实例化
+      	EventClient             v1core.EventsGetter
+      	HeartbeatClient         clientset.Interface
+      	OnHeartbeatFailure      func()
+      	KubeClient              clientset.Interface
+      	Mounter                 mount.Interface
+      	HostUtil                hostutil.HostUtils
+      	OOMAdjuster             *oom.OOMAdjuster
+      	OSInterface             kubecontainer.OSInterface
+      	PodConfig               *config.PodConfig
+      	Recorder                record.EventRecorder
+      	Subpather               subpath.Interface
+      	VolumePlugins           []volume.VolumePlugin
+      	DynamicPluginProber     volume.DynamicPluginProber
+      	TLSOptions              *server.TLSOptions
+      	KubeletConfigController *kubeletconfig.Controller
+      	RemoteRuntimeService    internalapi.RuntimeService
+      	RemoteImageService      internalapi.ImageManagerService
+      	dockerLegacyService     legacy.DockerLegacyService
+      	// remove it after cadvisor.UsingLegacyCadvisorStats dropped.
+      	useLegacyCadvisorStats bool
+      }
+      ```
+  
+  
+    * 将上面实例化的`Configuration控制器`加入到`kubeletDeps`中
+  
+      > 未启动态`KubeletConfig`配置时，此值为nil
+  
+      ```go
+      kubeletDeps.KubeletConfigController = kubeletConfigController	// 实质上也再次表明了kubeletDeps的作用
+      ```
+  
+    * 检查权限`checkPermissions()`
+  
+      > 即确保当前执行`kubelet`的系统用户的`uid`为0，通常即`root`用户。可通过如下示例查看当前用户信息
+      >
+      > ```shell
+      > [root@Centos7 ~]# id
+      > uid=0(root) gid=0(root) 组=0(root)
+      > ```
+
+	  * 设置上下文信号，以便`kubelet`和`docker shim`重复使用`ctx := genericapiserver.SetupSignalContext()`
+	
+	    > 这里需要了解`golang`标准库的`context`，执行`cancel()`后，所有`ctx.done()`将成功运行。
+	    >
+	    > 可参考：https://blog.csdn.net/u011957758/article/details/82948750
+	
+	    > 实际上是启动一个go线程，监听系统信号`syscall.SIGTERM`(即操作系统的`pkill`)和`os.Interrupt`（通常由`Ctrl+C`触发），即`中断程序信号`
+	    >
+	    > * 第一次收到中断信号，将为`ctx`执行`cancel()`，这将使得所有`<-ctx.done()`结束阻塞，一般情况会执行go 线程正常退出
+	    > * 第二次收到中断信号，直接使用`os.Exit(1)`强制结束进程
+	
+	
+	  * 访问`Pod`时隐藏头部信息
+	
+	    > 此处没看懂如何生效
+	
+	    ```go
+	    config := kubeletServer.KubeletConfiguration.DeepCopy()
+	    for k := range config.StaticPodURLHeader {
+	        config.StaticPodURLHeader[k] = []string{"<masked>"}
+	    }
+	    ```
+	
+	  * 运行kubelet
+	
+	    ```go
+	    // ctx: 
+	    // kubeletServer：kubelet运行时所有输入参数
+	    // kubeletDeps: 存放kubelet运行依赖接口的结构体指针
+	    // utilfeature.DefaultFeatureGate: 描述了本次运行针对若干版本特性的开启/关闭
+	    Run(ctx, kubeletServer, kubeletDeps, utilfeature.DefaultFeatureGate)
+	    ```
+
+* 设置`cleanFlagSet`
+
+  * 添加`kubeletFlags`（即命令行参数）
+
+  * 添加`kubeletconfig`对应的flags（虽然推荐使用配置文件，但仍旧保留命令行参数，标记为`Deprecated`
+
+  * 添加`GlobalFlags`，即补上相比原生的命令行应用（即`flag.CommandLine`)缺少的那部分全局`flags`。
+
+    > 经历此步骤以后，自定义的`cleanFlagSet`具备原生自带的`flag.CommandLine`的所有功能
+
+* 替换`cmd`的默认`UsageFunc`and`HelpFunc`
+
+  > 因为默认的这两个函数会由于`global flags`污染自定义的`flagset`
+
+  ```go
+  const usageFmt = "Usage:\n  %s\n\nFlags:\n%s"
+  cmd.SetUsageFunc(func(cmd *cobra.Command) error {
+      fmt.Fprintf(cmd.OutOrStderr(), usageFmt, cmd.UseLine(), cleanFlagSet.FlagUsagesWrapped(2))
+      return nil
+  })
+  cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+      fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n"+usageFmt, cmd.Long, cmd.UseLine(), cleanFlagSet.FlagUsagesWrapped(2))
+  })
+  ```
+
+  
 
