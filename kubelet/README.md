@@ -552,7 +552,6 @@ func NewKubeletCommand() *cobra.Command {
       }
       ```
   
-  
     * 将上面实例化的`Configuration控制器`加入到`kubeletDeps`中
   
       > 未启动态`KubeletConfig`配置时，此值为nil
@@ -580,7 +579,6 @@ func NewKubeletCommand() *cobra.Command {
 	    >
 	    > * 第一次收到中断信号，将为`ctx`执行`cancel()`，这将使得所有`<-ctx.done()`结束阻塞，一般情况会执行go 线程正常退出
 	    > * 第二次收到中断信号，直接使用`os.Exit(1)`强制结束进程
-	
 	
 	  * 访问`Pod`时隐藏头部信息
 	
