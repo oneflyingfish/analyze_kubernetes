@@ -591,7 +591,7 @@ func NewKubeletCommand() *cobra.Command {
 	    }
 	    ```
 	
-	  * 运行kubelet
+	  * 运行kubelet（*第4小节将展开详述*）
 	
 	    ```go
 	    // ctx: 
@@ -626,5 +626,131 @@ func NewKubeletCommand() *cobra.Command {
   })
   ```
 
-  
+
+#### 4. 运行`kubelet`
+
+> 入口：
+>
+> ```go
+> // ctx: 
+> // kubeletServer：kubelet运行时所有输入参数
+> // kubeletDeps: 存放kubelet运行依赖接口的结构体指针
+> // utilfeature.DefaultFeatureGate: 描述了本次运行针对若干版本特性的开启/关闭
+> Run(ctx, kubeletServer, kubeletDeps, utilfeature.DefaultFeatureGate)
+
+* 针对`Windows`运行环境执行特定初始化：`initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass)`
+
+  >`WindowsPriorityClass`: 设置与`Kubelet`进程关联的优先级类，可能的值如下：
+  >
+  >* IDLE_PRIORITY_CLASS (64)
+  >* BELOW_NORMAL_PRIORITY_CLASS (16384)
+  >* NORMAL_PRIORITY_CLASS (32)
+  >* ABOVE_NORMAL_PRIORITY_CLASS (32768)
+  >* HIGH_PRIORITY_CLASS (128)
+  >* REALTIME_PRIORITY_CLASS (256)
+
+  ```go
+  // 注意区分此处`init_windows.go`和`init_windows_test.go`
+  initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass)
+  ```
+
+* 执行`run(ctx, s, kubeDeps, featureGate)`
+
+  * 更新`Feature Gate`
+
+  * 验证`KubeletConfig`和`KubeletFlags`参数合法性：`options.ValidateKubeletServer(...)`
+
+  * 验证通过`文件锁（flock）`协调潜在的多个运行的`Kubelet`进程时，给定参数是否合法：判断`s.ExitOnLockContention` 和 `s.LockFilePath`的值
+
+  * 如果`flock`路径存在
+
+    * 获取`Lock`
+
+    > ```go
+    > unix.Flock(fd, unix.LOCK_EX)
+    > ```
+    >
+    > * `LOCK_SH`: 共享锁，在给定时间内多个进程可能持有给定文件的共享锁
+    > * **`LOCK_EX`: 互斥锁，在给定时间内只有一个进程可以持有给定文件的互斥锁**
+    > * `LOCK_UN`: 删除此进程当前持有的锁
+    >
+    > 成功时返回nil，否则返回error。
+
+    * 如果`kubelet`设置为`ExitOnLockContention`（已经有`kubelet`在运行时直接`Exit`）
+
+      ```go
+      func watchForLockfileContention(path string, done chan struct{}) error {
+      	// 初始化一个Watcher
+          // `go w.readEvents()`开启一个go线程，循环读取事件信息，解析成Event发送到 w.Event channel。
+          // 当系统事件信息通道被关闭（read返回0），或者done channel被写入数据时，事件内容解析结束
+          watcher, err := inotify.NewWatcher()		
+      	// ...
+          
+          // 向操作系统注册对flock文件的监控，此时readEvents()将开始能得到数据，之前应处于读阻塞状态
+      	watcher.AddWatch(path, inotify.InOpen|inotify.InDeleteSelf)
+      	
+          // ...
+      	go func() {
+      		select {
+      		case ev := <-watcher.Event:						// 读取到Event时退出select
+      			klog.InfoS("inotify event", "event", ev)
+      		case err = <-watcher.Error:
+      			klog.ErrorS(err, "inotify watcher error")
+      		}
+              close(done)										// 停止ReadEvent
+      		watcher.Close()									// 向操作系统取消对flock文件的监控
+      	}()
+      	return nil
+      }
+      ```
+
+  * 将`KubeletConfig`转化为`v1beta1`版本的`KubeletConfig`
+
+    > 此处似乎并未生效？？待修正
+
+  * 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
