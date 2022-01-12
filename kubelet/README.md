@@ -758,10 +758,12 @@ func NewKubeletCommand() *cobra.Command {
   * 容错性处理，如果传入的`kubeDeps`为`nil`，将在此处用`kubelet参数`和`featuregate`初始化
   
     > 在正常情况下，此处传入的`kubeDeps`在`cmd的run`中已经赋值
-
-
-
-
+  
+  * 初始化云管理控制器，此字段由`--cloud-provider`指定
+  
+    > 云管理控制器类似第三方的`kube-controller-manager`，此部分详见：[kubernetes云管理控制器文档](https://kubernetes.io/zh/docs/tasks/administer-cluster/running-cloud-controller/)
+  
+  * 
 
 
 
