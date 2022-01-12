@@ -13,6 +13,8 @@
 > * kubernetes：`v1.23.1`
 >
 > 说明：为了阅读方便，快速抓住核心，本文中的示例代码在源代码的基础上可能存在略微调整、伪代码化等等操作。如果阅读时存在排版疑问，请以文档原始编辑器(`typora v0.11.17 beta for windows`)为准
+>
+> **本文旨在辅助阅读源码，解读其中生涩之处，最终掌握整个程序的实现过程，而非通常意义上的教程。建议读者在此基础上，对照`kubernetes v1.23.1`源码，同步阅读。**
 
 #### 1. 简介
 
@@ -266,7 +268,7 @@ func NewKubeletCommand() *cobra.Command {
       >
       >* `var versionFlag = Version(versionFlagName, VersionFalse, "Print version information and quit")` 
       >
-      >  > 实质上就是基于`pflag`将一个`*versionValue`类型的值绑定到名为`versionFlagName`的`flag`,其默认值为`VersionFalse`，真实值存储在`versionFlag`
+      >  > 实质上就是基于`pflag`将一个`*versionValue`类型的值绑定到名为`versionFlagName`定义的`flag`,其默认值为`VersionFalse`，真实值存储在`versionFlag`
       >  >
       >
       >* 使用`AddFlags(fs *flag.FlagSet)`将此处声明的`flag`注册到`fs`中，即可接受到程序真实的参数输入
@@ -626,7 +628,6 @@ func NewKubeletCommand() *cobra.Command {
   })
   ```
 
-
 #### 4. 运行`kubelet`
 
 > 入口：
@@ -637,6 +638,7 @@ func NewKubeletCommand() *cobra.Command {
 > // kubeletDeps: 存放kubelet运行依赖接口的结构体指针
 > // utilfeature.DefaultFeatureGate: 描述了本次运行针对若干版本特性的开启/关闭
 > Run(ctx, kubeletServer, kubeletDeps, utilfeature.DefaultFeatureGate)
+> ```
 
 * 针对`Windows`运行环境执行特定初始化：`initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass)`
 
@@ -704,23 +706,66 @@ func NewKubeletCommand() *cobra.Command {
       }
       ```
 
-  * 将`KubeletConfig`转化为`v1beta1`版本的`KubeletConfig`
+  * 初始化`configz`：`initConfigz(...)`
 
-    > 此处似乎并未生效？？待修正
+    > 即将`kubeletconfig`转化至`v1beta1`版本格式，存储在`configz`包的全局变量`configs`中，其key=`"kubeletconfig"`
+    >
+    > `configs`类型为`map[string]*Config`
+    >
+    > ```go
+    > type Config struct {
+    > 	val interface{}
+    > }
+    > ```
+  
+    ```go
+    func initConfigz(kc *kubeletconfiginternal.KubeletConfiguration) error {
+        // 实质上cs := &(configz.configs["kubeletconfig"])
+        // 上述configs是configz包外不可见的全局变量，所以`configz.configs`形式仅便于理解，实际上不符合语法！！
+        cz, err := configz.New("kubeletconfig")	
+    	// ...
+    	setConfigz(cz, kc)
+        // ...
+    	return nil
+    }
+    
+    func setConfigz(cz *configz.Config, kc *kubeletconfiginternal.KubeletConfiguration) error {
+    	// 定义格式转化器
+    	versioned := kubeletconfigv1beta1.KubeletConfiguration{}
+    	// ...
+        scheme.Convert(kc, &versioned, nil)		// 将kubeletconfig转化为v1beta1版本格式
+        //...
+        cz.Set(versioned)	// [忽略语法问题] 相当于configz.configs["kubeletconfig"].val = versioned
+    	return nil
+    }
+    ```
+  
+  * 判断`s.ShowHiddenMetricsForVersion`
+  
+    > 显示隐藏指标的版本，此值暂未仔细研究，描述文档内容如下：
+    >
+    > The previous version for which you want to show hidden metrics.
+    > Only the previous minor version is meaningful, other values will not be allowed.
+    > The format is <major>.<minor>, e.g.: '1.16'.
+    > The purpose of this format is make sure you have the opportunity to notice if the next release hides additional metrics,
+    > rather than being surprised when they are permanently removed in the release after that.
+    > Logging specifies the options of logging.
+  
+  * 判断是否进入`standaloneMode`，当`--kubeconfig`未设置或内容为`""`时将开启
+  
+    > 此时`Kubelet`将无需`Kube-ApiServer`可独立运行，通常用于调试、测试等
+  
+  * 容错性处理，如果传入的`kubeDeps`为`nil`，将在此处用`kubelet参数`和`featuregate`初始化
+  
+    > 在正常情况下，此处传入的`kubeDeps`在`cmd的run`中已经赋值
 
-  * 
 
 
 
 
 
 
-
-
-
-
-
-
+​      
 
 
 
