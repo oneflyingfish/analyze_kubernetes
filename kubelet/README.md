@@ -781,9 +781,19 @@ func NewKubeletCommand() *cobra.Command {
   
     > 仅当已经成功初始化`cloud-provider`时，从云管理控制器获取`节点名称`，否则指定为`hostname`，即与上述`node-hostname`相同
   
-  * 
-
-
+  * `Kubelet运行模式`
+  
+    > * `kubeClient`：
+    > * `EventClient`：
+    > * `HeartbeatClient`
+  
+    * `standaloneMode`（独立运行模式）
+  
+      > 不初始化上述接口
+  
+    * 非`独立运行模式`：
+  
+      * 
 
 
 
