@@ -759,15 +759,29 @@ func NewKubeletCommand() *cobra.Command {
   
     > 在正常情况下，此处传入的`kubeDeps`在`cmd的run`中已经赋值
   
-  * 初始化云管理控制器，此字段由`--cloud-provider`指定
+  * 初始化云管理控制器
   
-    > 云管理控制器类似第三方的`kube-controller-manager`，此部分详见：[kubernetes云管理控制器文档](https://kubernetes.io/zh/docs/tasks/administer-cluster/running-cloud-controller/)
+    > `--cloud-provider`同于指定第三方的类似`kube-controller-manager`，此部分详见：[kubernetes云管理控制器文档](https://kubernetes.io/zh/docs/tasks/administer-cluster/running-cloud-controller/)
+  
+    * 若`--cloud-provider=external`，跳过此步骤
+    * 否则：
+      * 对于非`external`的弃用日志提示：
+        * 如果是`openstack`，则日志提示修正为`external`，并给出`弃用`警告
+        * 如果是`aws`、`azure`、`gce`、`vsphere`，则直接给出`弃用`警告
+        * 否则，无操作
+      * 初始化云管理控制器为`cloud`
+        * 如果未指定`--cloud-provider`，或者检测到`--cloud-provider=external`，则 `cloud=nil`
+        * 否则，根据`--cloud-config`指定的文件初始化`cloud`
+  
+  * 读入`node-hostname`，此处字母会自动转化为小写。如果未通过`--hostname-override`赋值，将通过`os.Hostname()`自动获取
+  
+    > 提示：正常情况下，`hostname`大小写不敏感
+  
+  * 读取`node-nodename`
+  
+    > 仅当已经成功初始化`cloud-provider`时，从云管理控制器获取`节点名称`，否则指定为`hostname`，即与上述`node-hostname`相同
   
   * 
-
-
-
-​      
 
 
 
