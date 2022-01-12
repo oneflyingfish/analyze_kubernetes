@@ -20,7 +20,7 @@
 
 * 学习`HTTPS`通信与`TLS`加密
 * 掌握`X.509`证书基本要素
-* 了解`Bootstrap`机制（`kubelet`向`kube-ApiServer`注册时使用）
+* 了解`TLS Bootstrap`机制（`kubelet`向`kube-ApiServer`注册时使用）
 * 基本了解网络代理、容器技术
 * 掌握`YAML`、`JSON`编码格式
 
