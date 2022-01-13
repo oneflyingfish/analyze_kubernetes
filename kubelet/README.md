@@ -793,7 +793,24 @@ func NewKubeletCommand() *cobra.Command {
   
     * 非`独立运行模式`：
   
-      * 
+      * 创建`KubeletClientConfig`:
+      
+        * 若指定`s.RotateCertificates`，执行相关的操作(证书自动重载)
+      
+        * 加载`Client`证书
+      
+          > 即加载`Kubelet`和`Apiserver`通信的`TLS`证书
+      
+          * 若指定的`--kubeconfig`有效，跳过此步骤
+      
+            > 有效指：
+            >
+            > * 文件指定且存在
+            > * 内容有效
+      
+          * 否则，启动`TLS Bootstrap`，为`Client`生成`证书`、`秘钥`和`kubeconfig`文件
+      
+            
 
 
 
